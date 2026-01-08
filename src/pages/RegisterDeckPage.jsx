@@ -5,6 +5,7 @@ import { getStripe, DECK_REGISTRATION_PRICE, isStripeConfigured } from '../lib/s
 import { config } from '../lib/config'
 import { 
   ArrowLeft, 
+  ArrowRight,
   Loader2, 
   Check, 
   CreditCard,
@@ -12,9 +13,19 @@ import {
   Info,
   Search,
   X,
-  Users,
-  HelpCircle
+  Users
 } from 'lucide-react'
+
+const steps = config.PAYMENT_ENABLED 
+  ? [
+      { id: 'commander', title: 'Commander' },
+      { id: 'confirm', title: 'Confirm' },
+      { id: 'payment', title: 'Payment' },
+    ]
+  : [
+      { id: 'commander', title: 'Commander' },
+      { id: 'confirm', title: 'Confirm' },
+    ]
 
 function RegisterDeckPage() {
   const navigate = useNavigate()
@@ -22,6 +33,7 @@ function RegisterDeckPage() {
   const { profile } = useAuthStore()
   const { addToast } = useToastStore()
   
+  const [currentStep, setCurrentStep] = useState(0)
   const [loading, setLoading] = useState(false)
   const [loadingImage, setLoadingImage] = useState(false)
   const [loadingSecondImage, setLoadingSecondImage] = useState(false)
@@ -30,28 +42,23 @@ function RegisterDeckPage() {
   const [commanderSearch, setCommanderSearch] = useState('')
   const [selectedCommander, setSelectedCommander] = useState(null)
   const [commanderImage, setCommanderImage] = useState(null)
-  const [commanderData, setCommanderData] = useState(null)
   const [showCommanderDropdown, setShowCommanderDropdown] = useState(false)
   
   // Second commander (for partners)
   const [needsSecondCommander, setNeedsSecondCommander] = useState(false)
-  const [partnerType, setPartnerType] = useState(null) // 'partner', 'partner_with', 'background', 'friends_forever'
-  const [specificPartnerName, setSpecificPartnerName] = useState(null) // For "Partner with X"
+  const [partnerType, setPartnerType] = useState(null)
+  const [specificPartnerName, setSpecificPartnerName] = useState(null)
   const [secondCommanderSearch, setSecondCommanderSearch] = useState('')
   const [selectedSecondCommander, setSelectedSecondCommander] = useState(null)
   const [secondCommanderImage, setSecondCommanderImage] = useState(null)
   const [showSecondCommanderDropdown, setShowSecondCommanderDropdown] = useState(false)
-  
-  // Optional decklist
-  const [decklistText, setDecklistText] = useState('')
-  const [showDecklistSection, setShowDecklistSection] = useState(false)
 
   useEffect(() => {
     fetchCommanders()
   }, [fetchCommanders])
 
-  // Fetch commander image and data from Scryfall
-  const fetchCommanderData = async (commanderName, setImage, setData, setLoadingState) => {
+  // Fetch commander image from Scryfall
+  const fetchCommanderData = async (commanderName, setImage, setLoadingState) => {
     if (!commanderName) return null
     
     setLoadingState(true)
@@ -61,12 +68,10 @@ function RegisterDeckPage() {
       )
       if (response.ok) {
         const data = await response.json()
-        // Get the normal image, or card face image for double-faced cards
         const imageUrl = data.image_uris?.normal || 
                         data.card_faces?.[0]?.image_uris?.normal ||
                         null
         setImage(imageUrl)
-        if (setData) setData(data)
         return data
       }
     } catch (error) {
@@ -85,7 +90,7 @@ function RegisterDeckPage() {
     const keywords = cardData.keywords || []
     const typeLine = cardData.type_line || ''
     
-    // Check for Background type (this card IS a background)
+    // Check for Background type
     if (typeLine.includes('Background')) {
       setNeedsSecondCommander(true)
       setPartnerType('is_background')
@@ -93,7 +98,7 @@ function RegisterDeckPage() {
       return
     }
     
-    // Check for "Partner with X" (specific pairing)
+    // Check for "Partner with X"
     const partnerWithMatch = oracleText.match(/Partner with ([^(\n]+)/i)
     if (partnerWithMatch) {
       setNeedsSecondCommander(true)
@@ -140,12 +145,12 @@ function RegisterDeckPage() {
     setCommanderSearch(commander.name)
     setShowCommanderDropdown(false)
     
-    // Reset second commander when first changes
+    // Reset second commander
     setSelectedSecondCommander(null)
     setSecondCommanderImage(null)
     setSecondCommanderSearch('')
     
-    const data = await fetchCommanderData(commander.name, setCommanderImage, setCommanderData, setLoadingImage)
+    const data = await fetchCommanderData(commander.name, setCommanderImage, setLoadingImage)
     if (data) {
       checkPartnerRequirements(data)
     }
@@ -155,7 +160,7 @@ function RegisterDeckPage() {
     setSelectedSecondCommander(commander)
     setSecondCommanderSearch(commander.name)
     setShowSecondCommanderDropdown(false)
-    await fetchCommanderData(commander.name, setSecondCommanderImage, null, setLoadingSecondImage)
+    await fetchCommanderData(commander.name, setSecondCommanderImage, setLoadingSecondImage)
   }
 
   const filteredCommanders = commanders.filter(c => 
@@ -163,7 +168,6 @@ function RegisterDeckPage() {
     c.is_legal !== false
   )
 
-  // Filter second commanders based on partner type
   const getFilteredSecondCommanders = () => {
     let filtered = commanders.filter(c =>
       c.name.toLowerCase().includes(secondCommanderSearch.toLowerCase()) &&
@@ -171,7 +175,6 @@ function RegisterDeckPage() {
       c.id !== selectedCommander?.id
     )
 
-    // Apply partner-type specific filtering
     if (partnerType === 'partner_with' && specificPartnerName) {
       filtered = filtered.filter(c => 
         c.name.toLowerCase() === specificPartnerName.toLowerCase()
@@ -181,29 +184,21 @@ function RegisterDeckPage() {
     } else if (partnerType === 'is_background') {
       filtered = filtered.filter(c => c.has_choose_background === true)
     }
-    // For 'partner' and 'friends_forever', allow any valid partner from the list
 
     return filtered
   }
 
   const filteredSecondCommanders = getFilteredSecondCommanders()
-
-  // Check if user has unlimited free registration (admin or special role)
   const hasUnlimitedFree = profile?.is_admin || profile?.unlimited_decks
 
   const getPartnerLabel = () => {
     switch (partnerType) {
-      case 'partner_with':
-        return `Partner with ${specificPartnerName}`
-      case 'choose_background':
-        return 'Choose a Background'
-      case 'is_background':
-        return 'Pair with a Commander'
-      case 'friends_forever':
-        return 'Friends Forever Partner'
+      case 'partner_with': return `Partner with ${specificPartnerName}`
+      case 'choose_background': return 'Choose a Background'
+      case 'is_background': return 'Pair with a Commander'
+      case 'friends_forever': return 'Friends Forever Partner'
       case 'partner':
-      default:
-        return 'Partner Commander'
+      default: return 'Partner Commander'
     }
   }
 
@@ -220,18 +215,15 @@ function RegisterDeckPage() {
 
     setLoading(true)
     try {
-      // Build commander name (include partner if applicable)
       const commanderName = needsSecondCommander && selectedSecondCommander
         ? `${selectedCommander.name} / ${selectedSecondCommander.name}`
         : selectedCommander.name
 
       await registerDeck({
-        name: commanderName, // Use commander name as deck identifier
+        name: commanderName,
         commander_name: selectedCommander.name,
         commander_id: selectedCommander.id,
-        second_commander_name: selectedSecondCommander?.name || null,
-        second_commander_id: selectedSecondCommander?.id || null,
-        decklist_text: decklistText || null,
+        decklist_text: null,
         payment_status: hasUnlimitedFree ? 'free_unlimited' : (config.PAYMENT_ENABLED ? 'completed' : 'free_beta'),
         payment_amount: hasUnlimitedFree ? 0 : (config.PAYMENT_ENABLED ? DECK_REGISTRATION_PRICE : 0)
       })
@@ -257,15 +249,8 @@ function RegisterDeckPage() {
 
     setLoading(true)
     try {
-      const stripe = await getStripe()
-      
-      addToast({ 
-        type: 'info', 
-        message: 'Payment processing... (Demo mode - auto-completing)' 
-      })
-      
+      addToast({ type: 'info', message: 'Payment processing... (Demo mode)' })
       await new Promise(resolve => setTimeout(resolve, 1500))
-      
       await handleRegister()
     } catch (error) {
       addToast({ type: 'error', message: 'Payment failed' })
@@ -273,14 +258,19 @@ function RegisterDeckPage() {
     }
   }
 
-  const canRegister = selectedCommander && (!needsSecondCommander || selectedSecondCommander)
+  const canProceed = () => {
+    if (currentStep === 0) {
+      return selectedCommander && (!needsSecondCommander || selectedSecondCommander)
+    }
+    return true
+  }
 
   return (
-    <div className="max-w-4xl mx-auto animate-fade-in">
+    <div className="max-w-3xl mx-auto animate-fade-in">
       {/* Back Button */}
       <button 
         onClick={() => navigate('/decks')}
-        className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
+        className="flex items-center gap-2 text-dim hover:text-pale mb-6 transition-colors"
       >
         <ArrowLeft className="w-5 h-5" />
         Back to Decks
@@ -288,26 +278,44 @@ function RegisterDeckPage() {
 
       {/* Header */}
       <div className="mb-8">
-        <h1 className="font-display font-bold text-3xl text-white mb-2">
+        <h1 className="font-display font-bold text-3xl text-pale mb-2">
           Register New Deck
         </h1>
-        <p className="text-gray-400">
+        <p className="text-dim">
           Select your commander to register a new deck for league play
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-8">
-        {/* Left Column: Selection */}
-        <div className="space-y-6">
-          {/* Commander Selection */}
-          <div className="card p-6">
-            <label className="block text-sm font-medium text-white mb-3">
-              Commander <span className="text-ember">*</span>
-            </label>
-            
-            <div className="relative">
+      {/* Progress Steps */}
+      <div className="flex items-center justify-between mb-8">
+        {steps.map((step, index) => (
+          <div key={step.id} className="flex items-center">
+            <div className={`flex items-center gap-3 ${index <= currentStep ? 'text-pale' : 'text-dim'}`}>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-display font-bold
+                ${index < currentStep ? 'bg-success text-void' :
+                  index === currentStep ? 'bg-ember text-void' : 'bg-stone'}`}>
+                {index < currentStep ? <Check className="w-5 h-5" /> : index + 1}
+              </div>
+              <span className="font-medium hidden sm:block">{step.title}</span>
+            </div>
+            {index < steps.length - 1 && (
+              <div className={`w-12 sm:w-24 h-0.5 mx-4 ${index < currentStep ? 'bg-success' : 'bg-mist'}`} />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Step Content */}
+      <div className="card mb-6">
+        {/* Step 1: Commander Selection */}
+        {currentStep === 0 && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Commander Selection */}
+            <div>
+              <label className="block text-sm font-medium text-pale mb-2">
+                Commander <span className="text-ember">*</span>
+              </label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
                   type="text"
                   value={commanderSearch}
@@ -317,13 +325,12 @@ function RegisterDeckPage() {
                     if (!e.target.value) {
                       setSelectedCommander(null)
                       setCommanderImage(null)
-                      setCommanderData(null)
                       setNeedsSecondCommander(false)
                     }
                   }}
                   onFocus={() => setShowCommanderDropdown(true)}
-                  className="input pl-10 pr-10"
-                  placeholder="Search for your commander..."
+                  className="input-field"
+                  placeholder="Search legal commanders..."
                 />
                 {selectedCommander && (
                   <button
@@ -331,65 +338,78 @@ function RegisterDeckPage() {
                       setSelectedCommander(null)
                       setCommanderSearch('')
                       setCommanderImage(null)
-                      setCommanderData(null)
                       setNeedsSecondCommander(false)
                       setPartnerType(null)
                     }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-dim hover:text-pale"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 )}
+                
+                {showCommanderDropdown && commanderSearch && !selectedCommander && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-abyss border border-mist rounded-xl shadow-xl z-20 max-h-60 overflow-y-auto">
+                    {filteredCommanders.length === 0 ? (
+                      <div className="p-4 text-dim text-center">No commanders found</div>
+                    ) : (
+                      filteredCommanders.slice(0, 15).map(commander => (
+                        <button
+                          key={commander.id}
+                          onClick={() => handleSelectCommander(commander)}
+                          className="w-full px-4 py-3 text-left hover:bg-stone/50 transition-colors border-b border-mist/30 last:border-0"
+                        >
+                          <span className="text-pale">{commander.name}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
-              
-              {showCommanderDropdown && commanderSearch && !selectedCommander && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-abyss border border-gray-800 rounded-xl shadow-xl z-20 max-h-60 overflow-y-auto">
-                  {filteredCommanders.length === 0 ? (
-                    <div className="p-4 text-gray-500 text-center">
-                      No commanders found
-                    </div>
-                  ) : (
-                    filteredCommanders.slice(0, 15).map(commander => (
-                      <button
-                        key={commander.id}
-                        onClick={() => handleSelectCommander(commander)}
-                        className="w-full px-4 py-3 text-left hover:bg-slate transition-colors flex items-center gap-3"
-                      >
-                        <span className="text-white">{commander.name}</span>
-                      </button>
-                    ))
-                  )}
+
+              {selectedCommander && (
+                <div className="mt-3 flex items-center gap-2 text-sm text-success">
+                  <Check className="w-4 h-4" />
+                  {selectedCommander.name} selected
                 </div>
               )}
             </div>
 
-            {selectedCommander && (
-              <div className="mt-3 flex items-center gap-2 text-sm text-green-400">
-                <Check className="w-4 h-4" />
-                Commander selected
+            {/* Commander Preview */}
+            {(loadingImage || commanderImage) && (
+              <div className="flex justify-center">
+                <div className="w-64 aspect-[488/680] bg-stone rounded-xl overflow-hidden">
+                  {loadingImage ? (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-dim" />
+                    </div>
+                  ) : (
+                    <img 
+                      src={commanderImage} 
+                      alt={selectedCommander?.name}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </div>
               </div>
             )}
-          </div>
 
-          {/* Second Commander (for partners) */}
-          {needsSecondCommander && (
-            <div className="card p-6 border-arcane/30 bg-arcane/5">
-              <div className="flex items-center gap-2 mb-3">
-                <Users className="w-5 h-5 text-arcane" />
-                <label className="text-sm font-medium text-white">
-                  {getPartnerLabel()} <span className="text-ember">*</span>
-                </label>
-              </div>
-              
-              {partnerType === 'partner_with' && (
-                <p className="text-sm text-gray-400 mb-3">
-                  This commander must be paired with <span className="text-white font-medium">{specificPartnerName}</span>.
-                </p>
-              )}
-              
-              <div className="relative">
+            {/* Second Commander (for partners) */}
+            {needsSecondCommander && (
+              <div className="p-4 bg-arcane/10 border border-arcane/30 rounded-xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="w-5 h-5 text-arcane" />
+                  <label className="text-sm font-medium text-pale">
+                    {getPartnerLabel()} <span className="text-ember">*</span>
+                  </label>
+                </div>
+                
+                {partnerType === 'partner_with' && (
+                  <p className="text-sm text-dim mb-3">
+                    This commander must be paired with <span className="text-pale font-medium">{specificPartnerName}</span>.
+                  </p>
+                )}
+                
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                   <input
                     type="text"
                     value={secondCommanderSearch}
@@ -398,235 +418,240 @@ function RegisterDeckPage() {
                       setShowSecondCommanderDropdown(true)
                     }}
                     onFocus={() => setShowSecondCommanderDropdown(true)}
-                    className="input pl-10"
+                    className="input-field"
                     placeholder={partnerType === 'partner_with' ? `Search for ${specificPartnerName}...` : 'Search for partner...'}
                   />
+                  
+                  {showSecondCommanderDropdown && !selectedSecondCommander && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-abyss border border-mist rounded-xl shadow-xl z-20 max-h-60 overflow-y-auto">
+                      {filteredSecondCommanders.length === 0 ? (
+                        <div className="p-4 text-dim text-center">
+                          {secondCommanderSearch ? 'No matching commanders' : 'Type to search...'}
+                        </div>
+                      ) : (
+                        filteredSecondCommanders.slice(0, 15).map(commander => (
+                          <button
+                            key={commander.id}
+                            onClick={() => handleSelectSecondCommander(commander)}
+                            className="w-full px-4 py-3 text-left hover:bg-stone/50 transition-colors border-b border-mist/30 last:border-0"
+                          >
+                            <span className="text-pale">{commander.name}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
-                
-                {showSecondCommanderDropdown && !selectedSecondCommander && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-abyss border border-gray-800 rounded-xl shadow-xl z-20 max-h-60 overflow-y-auto">
-                    {filteredSecondCommanders.length === 0 ? (
-                      <div className="p-4 text-gray-500 text-center">
-                        {secondCommanderSearch ? 'No matching commanders found' : 'Type to search...'}
-                      </div>
-                    ) : (
-                      filteredSecondCommanders.slice(0, 15).map(commander => (
-                        <button
-                          key={commander.id}
-                          onClick={() => handleSelectSecondCommander(commander)}
-                          className="w-full px-4 py-3 text-left hover:bg-slate transition-colors"
-                        >
-                          <span className="text-white">{commander.name}</span>
-                        </button>
-                      ))
-                    )}
+
+                {selectedSecondCommander && (
+                  <div className="mt-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm text-success">
+                      <Check className="w-4 h-4" />
+                      {selectedSecondCommander.name} selected
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedSecondCommander(null)
+                        setSecondCommanderSearch('')
+                        setSecondCommanderImage(null)
+                      }}
+                      className="text-dim hover:text-pale text-sm"
+                    >
+                      Change
+                    </button>
+                  </div>
+                )}
+
+                {/* Second Commander Preview */}
+                {(loadingSecondImage || secondCommanderImage) && (
+                  <div className="flex justify-center mt-4">
+                    <div className="w-48 aspect-[488/680] bg-stone rounded-xl overflow-hidden">
+                      {loadingSecondImage ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Loader2 className="w-6 h-6 animate-spin text-dim" />
+                        </div>
+                      ) : (
+                        <img 
+                          src={secondCommanderImage} 
+                          alt={selectedSecondCommander?.name}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
-
-              {selectedSecondCommander && (
-                <div className="mt-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-green-400">
-                    <Check className="w-4 h-4" />
-                    {selectedSecondCommander.name} selected
-                  </div>
-                  <button
-                    onClick={() => {
-                      setSelectedSecondCommander(null)
-                      setSecondCommanderSearch('')
-                      setSecondCommanderImage(null)
-                    }}
-                    className="text-gray-500 hover:text-white text-sm"
-                  >
-                    Change
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Optional Decklist */}
-          <div className="card p-6">
-            <button
-              onClick={() => setShowDecklistSection(!showDecklistSection)}
-              className="flex items-center justify-between w-full"
-            >
-              <div className="flex items-center gap-2">
-                <HelpCircle className="w-5 h-5 text-gray-500" />
-                <span className="text-sm font-medium text-white">
-                  Add Decklist (Optional)
-                </span>
-              </div>
-              <span className="text-gray-500 text-sm">
-                {showDecklistSection ? '−' : '+'}
-              </span>
-            </button>
-
-            {showDecklistSection && (
-              <div className="mt-4 space-y-3">
-                <div className="p-3 bg-slate/50 rounded-lg border border-gray-800">
-                  <p className="text-sm text-gray-400">
-                    <Info className="w-4 h-4 inline mr-1 text-arcane" />
-                    Decklists are <strong className="text-white">not required</strong> for regular league play. 
-                    We encourage players to evolve their decks throughout the year and add cards from new sets!
-                  </p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    Decklists are only needed for <strong>tournament events</strong> or <strong>deckbuilding contests</strong>.
-                  </p>
-                </div>
-                
-                <textarea
-                  value={decklistText}
-                  onChange={(e) => setDecklistText(e.target.value)}
-                  className="input min-h-[150px] font-mono text-sm"
-                  placeholder={`1 Sol Ring
-1 Command Tower
-1 Arcane Signet
-...`}
-                />
-              </div>
             )}
-          </div>
-        </div>
 
-        {/* Right Column: Preview & Checkout */}
-        <div className="space-y-6">
-          {/* Commander Preview */}
-          <div className="card p-6">
-            <h3 className="text-lg font-display font-bold text-white mb-4">
-              Preview
-            </h3>
-            
-            <div className={`grid ${needsSecondCommander && selectedSecondCommander ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
-              {/* First Commander Image */}
-              <div className="aspect-[488/680] bg-slate rounded-xl overflow-hidden flex items-center justify-center">
-                {loadingImage ? (
-                  <Loader2 className="w-8 h-8 animate-spin text-gray-600" />
-                ) : commanderImage ? (
+            {/* Decklist Info Blurb */}
+            <div className="p-4 bg-stone/30 rounded-xl border border-mist/30">
+              <div className="flex items-start gap-3">
+                <Info className="w-5 h-5 text-arcane mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-pale font-medium mb-1">No Decklist Required</p>
+                  <p className="text-sm text-dim">
+                    Decklists are <strong>not needed</strong> for regular league play. We encourage players 
+                    to evolve their decks throughout the year and add cards from new sets!
+                  </p>
+                  <p className="text-sm text-dim mt-2">
+                    For <strong>tournaments</strong>, decklist submission will be available on{' '}
+                    <span className="text-arcane">Topdeck.gg</span>. For <strong>deckbuilding contests</strong>, 
+                    submission guidelines will be posted on the Contests page.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Confirmation */}
+        {currentStep === 1 && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="text-center">
+              <h2 className="font-display font-semibold text-xl text-pale mb-2">
+                Confirm Registration
+              </h2>
+              <p className="text-dim">
+                Review your deck before completing registration
+              </p>
+            </div>
+
+            {/* Commander Preview(s) */}
+            <div className={`flex justify-center gap-4 ${needsSecondCommander && selectedSecondCommander ? '' : ''}`}>
+              {commanderImage && (
+                <div className="w-48 aspect-[488/680] bg-stone rounded-xl overflow-hidden">
                   <img 
                     src={commanderImage} 
                     alt={selectedCommander?.name}
                     className="w-full h-full object-cover"
                   />
-                ) : (
-                  <div className="text-center p-4">
-                    <div className="w-16 h-16 rounded-full bg-abyss mx-auto mb-3 flex items-center justify-center">
-                      <Search className="w-8 h-8 text-gray-700" />
-                    </div>
-                    <p className="text-gray-600 text-sm">
-                      Select a commander to see preview
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Second Commander Image (if partner) */}
-              {needsSecondCommander && (
-                <div className="aspect-[488/680] bg-slate rounded-xl overflow-hidden flex items-center justify-center">
-                  {loadingSecondImage ? (
-                    <Loader2 className="w-8 h-8 animate-spin text-gray-600" />
-                  ) : secondCommanderImage ? (
-                    <img 
-                      src={secondCommanderImage} 
-                      alt={selectedSecondCommander?.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="text-center p-4">
-                      <div className="w-16 h-16 rounded-full bg-abyss mx-auto mb-3 flex items-center justify-center">
-                        <Users className="w-8 h-8 text-gray-700" />
-                      </div>
-                      <p className="text-gray-600 text-sm">
-                        Select a partner
-                      </p>
-                    </div>
-                  )}
+                </div>
+              )}
+              {needsSecondCommander && secondCommanderImage && (
+                <div className="w-48 aspect-[488/680] bg-stone rounded-xl overflow-hidden">
+                  <img 
+                    src={secondCommanderImage} 
+                    alt={selectedSecondCommander?.name}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
               )}
             </div>
 
-            {selectedCommander && (
-              <div className="mt-4 text-center">
-                <p className="text-white font-medium">
-                  {selectedCommander.name}
-                  {selectedSecondCommander && ` / ${selectedSecondCommander.name}`}
-                </p>
+            {/* Summary */}
+            <div className="bg-stone/50 rounded-lg p-4 space-y-3">
+              <div className="flex justify-between text-dim">
+                <span>Commander</span>
+                <span className="text-pale">{selectedCommander?.name}</span>
               </div>
-            )}
-          </div>
-
-          {/* Registration Summary */}
-          <div className="card p-6">
-            <h3 className="text-lg font-display font-bold text-white mb-4">
-              Registration Summary
-            </h3>
-            
-            <div className="space-y-3 mb-6">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Commander</span>
-                <span className="text-white">
-                  {selectedCommander?.name || '—'}
-                </span>
-              </div>
-              {needsSecondCommander && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Partner</span>
-                  <span className="text-white">
-                    {selectedSecondCommander?.name || '—'}
-                  </span>
+              {needsSecondCommander && selectedSecondCommander && (
+                <div className="flex justify-between text-dim">
+                  <span>Partner</span>
+                  <span className="text-pale">{selectedSecondCommander.name}</span>
                 </div>
               )}
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Decklist</span>
-                <span className="text-white">
-                  {decklistText ? 'Included' : 'Not required'}
-                </span>
-              </div>
-              <div className="border-t border-gray-800 pt-3 flex justify-between">
-                <span className="font-medium text-white">Registration Fee</span>
+              <div className="border-t border-mist pt-3 flex justify-between">
+                <span className="font-semibold text-pale">Registration Fee</span>
                 {hasUnlimitedFree ? (
-                  <span className="font-display font-bold text-lg text-arcane">
-                    FREE (Unlimited)
-                  </span>
+                  <span className="font-display font-bold text-xl text-arcane">FREE (Unlimited)</span>
                 ) : config.PAYMENT_ENABLED ? (
-                  <span className="font-display font-bold text-lg text-ember">
+                  <span className="font-display font-bold text-xl text-ember">
                     ${(DECK_REGISTRATION_PRICE / 100).toFixed(2)}
                   </span>
                 ) : (
-                  <span className="font-display font-bold text-lg text-green-400">
-                    FREE (Beta)
-                  </span>
+                  <span className="font-display font-bold text-xl text-success">FREE (Beta)</span>
                 )}
+              </div>
+            </div>
+
+            {/* Register Button (for non-payment flow) */}
+            {!config.PAYMENT_ENABLED || hasUnlimitedFree ? (
+              <>
+                <button
+                  onClick={handleRegister}
+                  disabled={loading}
+                  className="btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
+                >
+                  {loading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      Register Deck
+                    </>
+                  )}
+                </button>
+                <p className="text-center text-sm text-dim">
+                  🎉 Registration is free during the beta period!
+                </p>
+              </>
+            ) : null}
+          </div>
+        )}
+
+        {/* Step 3: Payment (only if enabled) */}
+        {currentStep === 2 && config.PAYMENT_ENABLED && !hasUnlimitedFree && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="text-center">
+              <h2 className="font-display font-semibold text-xl text-pale mb-2">
+                Complete Payment
+              </h2>
+              <p className="text-dim">
+                Pay the registration fee to add this deck to your arsenal
+              </p>
+            </div>
+
+            <div className="bg-stone/50 rounded-lg p-4">
+              <div className="flex justify-between">
+                <span className="font-semibold text-pale">Registration Fee</span>
+                <span className="font-display font-bold text-xl text-ember">
+                  ${(DECK_REGISTRATION_PRICE / 100).toFixed(2)}
+                </span>
               </div>
             </div>
 
             <button
-              onClick={config.PAYMENT_ENABLED && !hasUnlimitedFree ? handlePaymentAndRegister : handleRegister}
-              disabled={!canRegister || loading}
-              className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handlePaymentAndRegister}
+              disabled={loading}
+              className="btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
-              ) : config.PAYMENT_ENABLED && !hasUnlimitedFree ? (
-                <>
-                  <CreditCard className="w-5 h-5" />
-                  Pay & Register
-                </>
               ) : (
                 <>
-                  <Sparkles className="w-5 h-5" />
-                  Register Deck
+                  <CreditCard className="w-5 h-5" />
+                  Pay & Register Deck
                 </>
               )}
             </button>
-
-            {config.PAYMENT_ENABLED && !hasUnlimitedFree && (
-              <p className="text-center text-sm text-gray-500 mt-3">
-                Secure payment powered by Stripe
-              </p>
-            )}
+            <p className="text-center text-sm text-dim">
+              Secure payment powered by Stripe
+            </p>
           </div>
-        </div>
+        )}
+      </div>
+
+      {/* Navigation Buttons */}
+      <div className="flex justify-between">
+        <button
+          onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+          disabled={currentStep === 0}
+          className="btn-secondary flex items-center gap-2"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Back
+        </button>
+
+        {currentStep < steps.length - 1 && (
+          <button
+            onClick={() => setCurrentStep(currentStep + 1)}
+            disabled={!canProceed()}
+            className="btn-primary flex items-center gap-2"
+          >
+            Continue
+            <ArrowRight className="w-5 h-5" />
+          </button>
+        )}
       </div>
     </div>
   )

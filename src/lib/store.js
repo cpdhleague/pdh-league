@@ -54,12 +54,12 @@ export const useAuthStore = create(
         return data
       },
       
-      signUp: async (email, password, username) => {
+      signUp: async (email, password, username, legalName) => {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: { username }
+            data: { username, legal_name: legalName }
           }
         })
         if (error) throw error
@@ -420,8 +420,7 @@ export const useLeaderboardStore = create((set) => ({
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, username, elo, wins, losses, matches_played')
-        .gt('matches_played', 0)
+        .select('id, username, elo, wins, losses, draws, matches_played')
         .order('elo', { ascending: false })
         .limit(limit)
       

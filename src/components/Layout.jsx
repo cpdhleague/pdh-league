@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAuthStore, useMatchStore } from '../lib/store'
+import { useAuthStore, useMatchStore, useDeckStore } from '../lib/store'
+import { getEloTier, getHighestDeckElo } from '../lib/utils'
 import { 
   LayoutDashboard, 
   Layers, 
@@ -13,7 +14,8 @@ import {
   X,
   AlertTriangle,
   ChevronDown,
-  User
+  User,
+  Shield
 } from 'lucide-react'
 
 const navItems = [
@@ -29,8 +31,20 @@ function Layout() {
   const navigate = useNavigate()
   const { user, profile, signOut } = useAuthStore()
   const { pendingValidation } = useMatchStore()
+  const { decks, fetchDecks } = useDeckStore()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+
+  // Fetch decks on mount to calculate top ELO
+  useEffect(() => {
+    if (user) {
+      fetchDecks()
+    }
+  }, [user, fetchDecks])
+
+  // Calculate top deck ELO
+  const topDeckElo = getHighestDeckElo(decks)
+  const tier = getEloTier(topDeckElo)
 
   const handleSignOut = async () => {
     await signOut()
@@ -95,15 +109,13 @@ function Layout() {
 
             {/* User Menu */}
             <div className="flex items-center gap-4">
-              {/* ELO Badge */}
-              {profile?.elo && (
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gold/10 border border-gold/30 rounded-full">
-                  <Trophy className="w-4 h-4 text-gold" />
-                  <span className="font-display font-semibold text-gold">
-                    {profile.elo}
-                  </span>
-                </div>
-              )}
+              {/* Top Deck ELO Badge */}
+              <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 ${tier.bgColor} border ${tier.borderColor} rounded-full`}>
+                <Shield className={`w-4 h-4 ${tier.color}`} />
+                <span className={`font-display font-semibold ${tier.color}`}>
+                  {topDeckElo || 0}
+                </span>
+              </div>
 
               {/* User Dropdown */}
               <div className="relative">

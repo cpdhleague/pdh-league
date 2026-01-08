@@ -38,7 +38,7 @@ export const config = {
     { name: 'Gold', min: 1000, max: 1199, color: 'text-yellow-500', bgColor: 'bg-yellow-500/20' },
     { name: 'Platinum', min: 1200, max: 1299, color: 'text-emerald-400', bgColor: 'bg-emerald-400/20' },
     { name: 'Diamond', min: 1300, max: 1399, color: 'text-cyan-400', bgColor: 'bg-cyan-400/20' },
-    { name: 'Mythic', min: 1400, max: 99999, color: 'text-red-500', bgColor: 'bg-red-500/20' },
+    { name: 'Mythic', min: 1400, max: 99999, color: 'text-purple-500', bgColor: 'bg-purple-500/20' },
   ],
   
   // Year 1 Results Link (update this with your spreadsheet link)

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore, useToastStore } from '../lib/store'
-import { Loader2, Mail, Lock, User, ArrowRight, Check } from 'lucide-react'
+import { Loader2, Mail, Lock, User, ArrowRight, Check, Info, FileText } from 'lucide-react'
 
 function RegisterPage() {
   const navigate = useNavigate()
@@ -10,6 +10,7 @@ function RegisterPage() {
   
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
+  const [legalName, setLegalName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -34,6 +35,11 @@ function RegisterPage() {
       return
     }
 
+    if (!legalName.trim()) {
+      addToast({ type: 'error', message: 'Legal name is required' })
+      return
+    }
+
     if (!agreed) {
       addToast({ type: 'error', message: 'Please agree to the terms' })
       return
@@ -42,7 +48,7 @@ function RegisterPage() {
     setLoading(true)
 
     try {
-      await signUp(email, password, username)
+      await signUp(email, password, username, legalName)
       addToast({ 
         type: 'success', 
         title: 'Account created!',
@@ -133,9 +139,41 @@ function RegisterPage() {
               </div>
             </div>
 
+            {/* Legal Name Field */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <label htmlFor="legalName" className="block text-sm font-medium text-pale">
+                  Legal Name
+                </label>
+                <div className="group relative">
+                  <Info className="w-4 h-4 text-dim cursor-help" />
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-abyss border border-gray-700 rounded-lg text-xs text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    We need to verify your identity before sending out large cash prizes. This should match your passport or driver's license.
+                  </div>
+                </div>
+              </div>
+              <div className="relative">
+                <FileText className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-dim" />
+                <input
+                  id="legalName"
+                  type="text"
+                  value={legalName}
+                  onChange={(e) => setLegalName(e.target.value)}
+                  className="input-field pl-12"
+                  placeholder="John Smith"
+                  required
+                />
+              </div>
+              <p className="text-xs text-dim mt-1">
+                Required for prize verification. Must match your ID.
+              </p>
+            </div>
+
+            {/* Username Field */}
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-pale mb-2">
                 Username
+                <span className="text-dim font-normal ml-2">• This is what others see you as</span>
               </label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-dim" />
@@ -151,6 +189,9 @@ function RegisterPage() {
                   maxLength={20}
                 />
               </div>
+              <p className="text-xs text-dim mt-1">
+                Cannot be changed after account creation
+              </p>
             </div>
 
             <div>

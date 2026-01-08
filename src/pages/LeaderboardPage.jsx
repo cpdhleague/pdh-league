@@ -310,7 +310,7 @@ export default function LeaderboardPage() {
         <h3 className="font-display font-semibold mb-4">ELO Tiers</h3>
         <div className="flex flex-wrap gap-4">
           {[
-            { name: 'Mythic', min: 1400, color: 'text-red-500', bg: 'bg-red-500/20' },
+            { name: 'Mythic', min: 1400, color: 'text-purple-500', bg: 'bg-purple-500/20' },
             { name: 'Diamond', min: 1300, color: 'text-cyan-400', bg: 'bg-cyan-400/20' },
             { name: 'Platinum', min: 1200, color: 'text-emerald-400', bg: 'bg-emerald-400/20' },
             { name: 'Gold', min: 1000, color: 'text-yellow-500', bg: 'bg-yellow-500/20' },

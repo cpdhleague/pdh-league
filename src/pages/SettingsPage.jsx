@@ -1,21 +1,16 @@
 import { useState } from 'react'
 import { 
-  User, Mail, Lock, Bell, Shield, Trash2, 
-  Save, Loader2, Eye, EyeOff, AlertTriangle
+  User, Mail, Lock, Bell, 
+  Save, Loader2, Eye, EyeOff, Info
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore, useToastStore } from '../lib/store'
 
 export default function SettingsPage() {
-  const { user, profile, fetchProfile } = useAuthStore()
+  const { user, profile } = useAuthStore()
   const { addToast } = useToastStore()
 
-  // Profile settings
-  const [username, setUsername] = useState(profile?.username || '')
-  const [savingProfile, setSavingProfile] = useState(false)
-
   // Password change
-  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPasswords, setShowPasswords] = useState(false)
@@ -28,60 +23,18 @@ export default function SettingsPage() {
     contestStart: true,
     weeklyDigest: false
   })
-
-  // Delete account
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [deleteConfirmation, setDeleteConfirmation] = useState('')
-  const [deleting, setDeleting] = useState(false)
-
-  const handleSaveProfile = async (e) => {
-    e.preventDefault()
-    
-    if (!username.trim()) {
-      addToast('Username cannot be empty', 'error')
-      return
-    }
-
-    if (username.length < 3) {
-      addToast('Username must be at least 3 characters', 'error')
-      return
-    }
-
-    setSavingProfile(true)
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ 
-          username: username.trim(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id)
-
-      if (error) throw error
-
-      await fetchProfile()
-      addToast('Profile updated successfully', 'success')
-    } catch (error) {
-      if (error.code === '23505') {
-        addToast('Username already taken', 'error')
-      } else {
-        addToast(error.message || 'Failed to update profile', 'error')
-      }
-    } finally {
-      setSavingProfile(false)
-    }
-  }
+  const [savingNotifications, setSavingNotifications] = useState(false)
 
   const handleChangePassword = async (e) => {
     e.preventDefault()
 
     if (newPassword.length < 8) {
-      addToast('Password must be at least 8 characters', 'error')
+      addToast({ type: 'error', message: 'Password must be at least 8 characters' })
       return
     }
 
     if (newPassword !== confirmPassword) {
-      addToast('Passwords do not match', 'error')
+      addToast({ type: 'error', message: 'Passwords do not match' })
       return
     }
 
@@ -93,88 +46,77 @@ export default function SettingsPage() {
 
       if (error) throw error
 
-      setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      addToast('Password changed successfully', 'success')
+      addToast({ type: 'success', message: 'Password changed successfully' })
     } catch (error) {
-      addToast(error.message || 'Failed to change password', 'error')
+      addToast({ type: 'error', message: error.message || 'Failed to change password' })
     } finally {
       setChangingPassword(false)
     }
   }
 
-  const handleDeleteAccount = async () => {
-    if (deleteConfirmation !== profile?.username) {
-      addToast('Please type your username to confirm', 'error')
-      return
-    }
-
-    setDeleting(true)
+  const handleSaveNotifications = async () => {
+    setSavingNotifications(true)
     try {
-      // In a real app, this would call a server function to properly delete the user
-      // For now, we'll just show a message
-      addToast('Account deletion requested. An admin will process this shortly.', 'info')
-      setShowDeleteModal(false)
+      // In a real app, save to database
+      await new Promise(resolve => setTimeout(resolve, 500))
+      addToast({ type: 'success', message: 'Notification preferences saved' })
     } catch (error) {
-      addToast(error.message || 'Failed to delete account', 'error')
+      addToast({ type: 'error', message: 'Failed to save preferences' })
     } finally {
-      setDeleting(false)
+      setSavingNotifications(false)
     }
   }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-3xl font-display font-bold text-white">Settings</h1>
+      <h1 className="text-3xl font-display font-bold text-white">Account Settings</h1>
 
-      {/* Profile Settings */}
+      {/* Profile Information (Read-Only) */}
       <div className="card p-6">
         <h2 className="text-xl font-display font-bold text-white mb-4 flex items-center gap-2">
           <User className="w-5 h-5 text-ember" />
-          Profile Settings
+          Profile Information
         </h2>
 
-        <form onSubmit={handleSaveProfile} className="space-y-4">
+        <div className="space-y-4">
+          {/* Email */}
           <div>
-            <label className="label">Email</label>
-            <div className="flex items-center gap-2">
+            <label className="block text-sm font-medium text-gray-400 mb-2">Email</label>
+            <div className="flex items-center gap-3 px-4 py-3 bg-slate/50 rounded-lg border border-gray-800">
               <Mail className="w-5 h-5 text-gray-500" />
-              <span className="text-gray-400">{user?.email}</span>
+              <span className="text-gray-300">{user?.email}</span>
             </div>
             <p className="text-xs text-gray-600 mt-1">Email cannot be changed</p>
           </div>
 
+          {/* Username (Read-Only) */}
           <div>
-            <label className="label">Username</label>
-            <input
-              type="text"
-              className="input"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter username"
-              minLength={3}
-              maxLength={20}
-            />
+            <label className="block text-sm font-medium text-gray-400 mb-2">
+              Username
+              <span className="text-gray-600 font-normal ml-2">• This is what others see you as</span>
+            </label>
+            <div className="flex items-center gap-3 px-4 py-3 bg-slate/50 rounded-lg border border-gray-800">
+              <User className="w-5 h-5 text-gray-500" />
+              <span className="text-white font-medium">{profile?.username}</span>
+            </div>
+            <p className="text-xs text-gray-600 mt-1">Username cannot be changed after account creation</p>
           </div>
 
-          <button 
-            type="submit" 
-            className="btn-primary"
-            disabled={savingProfile}
-          >
-            {savingProfile ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" />
-                Save Profile
-              </>
-            )}
-          </button>
-        </form>
+          {/* Legal Name (Read-Only) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-2">
+              Legal Name
+            </label>
+            <div className="flex items-center gap-3 px-4 py-3 bg-slate/50 rounded-lg border border-gray-800">
+              <span className="text-gray-300">{profile?.legal_name || 'Not provided'}</span>
+            </div>
+            <p className="text-xs text-gray-600 mt-1">
+              Contact an admin if you need to update your legal name
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Change Password */}
@@ -186,11 +128,11 @@ export default function SettingsPage() {
 
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div>
-            <label className="label">New Password</label>
+            <label className="block text-sm font-medium text-gray-400 mb-2">New Password</label>
             <div className="relative">
               <input
                 type={showPasswords ? 'text' : 'password'}
-                className="input pr-10"
+                className="w-full px-4 py-3 bg-slate/50 rounded-lg border border-gray-800 text-white placeholder-gray-600 focus:outline-none focus:border-ember focus:ring-1 focus:ring-ember pr-12"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Enter new password"
@@ -207,10 +149,10 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label className="label">Confirm New Password</label>
+            <label className="block text-sm font-medium text-gray-400 mb-2">Confirm New Password</label>
             <input
               type={showPasswords ? 'text' : 'password'}
-              className="input"
+              className="w-full px-4 py-3 bg-slate/50 rounded-lg border border-gray-800 text-white placeholder-gray-600 focus:outline-none focus:border-ember focus:ring-1 focus:ring-ember"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm new password"
@@ -219,12 +161,12 @@ export default function SettingsPage() {
 
           <button 
             type="submit" 
-            className="btn-primary"
+            className="btn-primary flex items-center gap-2"
             disabled={changingPassword || !newPassword || !confirmPassword}
           >
             {changingPassword ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                <Loader2 className="w-4 h-4 animate-spin" />
                 Changing...
               </>
             ) : (
@@ -242,7 +184,7 @@ export default function SettingsPage() {
         </h2>
 
         <div className="space-y-4">
-          <label className="flex items-center justify-between cursor-pointer">
+          <label className="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-slate/30 transition-colors">
             <span className="text-gray-300">Match ready notifications</span>
             <input
               type="checkbox"
@@ -252,7 +194,7 @@ export default function SettingsPage() {
             />
           </label>
 
-          <label className="flex items-center justify-between cursor-pointer">
+          <label className="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-slate/30 transition-colors">
             <span className="text-gray-300">Lobby full alerts</span>
             <input
               type="checkbox"
@@ -262,7 +204,7 @@ export default function SettingsPage() {
             />
           </label>
 
-          <label className="flex items-center justify-between cursor-pointer">
+          <label className="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-slate/30 transition-colors">
             <span className="text-gray-300">New contest announcements</span>
             <input
               type="checkbox"
@@ -272,7 +214,7 @@ export default function SettingsPage() {
             />
           </label>
 
-          <label className="flex items-center justify-between cursor-pointer">
+          <label className="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-slate/30 transition-colors">
             <span className="text-gray-300">Weekly stats digest</span>
             <input
               type="checkbox"
@@ -283,83 +225,43 @@ export default function SettingsPage() {
           </label>
         </div>
 
+        <button 
+          onClick={handleSaveNotifications}
+          className="btn-secondary flex items-center gap-2 mt-4"
+          disabled={savingNotifications}
+        >
+          {savingNotifications ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4" />
+              Save Preferences
+            </>
+          )}
+        </button>
+
         <p className="text-xs text-gray-600 mt-4">
           Note: Email notifications will be sent to {user?.email}
         </p>
       </div>
 
-      {/* Danger Zone */}
-      <div className="card p-6 border-red-500/30">
-        <h2 className="text-xl font-display font-bold text-red-400 mb-4 flex items-center gap-2">
-          <Shield className="w-5 h-5" />
-          Danger Zone
-        </h2>
-
-        <p className="text-gray-400 mb-4">
-          Once you delete your account, there is no going back. Please be certain.
-        </p>
-
-        <button 
-          onClick={() => setShowDeleteModal(true)}
-          className="btn bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30"
-        >
-          <Trash2 className="w-4 h-4 mr-2" />
-          Delete Account
-        </button>
-      </div>
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && (
-        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-          <div className="modal-content max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4 text-red-400">
-              <AlertTriangle className="w-8 h-8" />
-              <h3 className="text-xl font-display font-bold">Delete Account</h3>
-            </div>
-
-            <p className="text-gray-400 mb-4">
-              This action <strong className="text-white">cannot be undone</strong>. This will permanently delete your account, all your decks, match history, and remove you from all leaderboards.
+      {/* Account Info */}
+      <div className="card p-6 bg-slate/30">
+        <div className="flex items-start gap-3">
+          <Info className="w-5 h-5 text-arcane mt-0.5" />
+          <div>
+            <h3 className="text-white font-medium mb-1">About Your Account</h3>
+            <p className="text-sm text-gray-400">
+              Your match history and ELO ratings are permanently tied to your account to maintain 
+              the integrity of league rankings. If you need assistance with your account, please 
+              contact an administrator.
             </p>
-
-            <div className="mb-4">
-              <label className="label">
-                Type <strong className="text-white">{profile?.username}</strong> to confirm
-              </label>
-              <input
-                type="text"
-                className="input"
-                value={deleteConfirmation}
-                onChange={(e) => setDeleteConfirmation(e.target.value)}
-                placeholder="Enter your username"
-              />
-            </div>
-
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setShowDeleteModal(false)}
-                className="btn-secondary flex-1"
-                disabled={deleting}
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleDeleteAccount}
-                className="btn bg-red-500 text-white hover:bg-red-600 flex-1"
-                disabled={deleting || deleteConfirmation !== profile?.username}
-              >
-                {deleting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Deleting...
-                  </>
-                ) : (
-                  'Delete Account'
-                )}
-              </button>
-            </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Custom toggle styles */}
       <style>{`
@@ -372,6 +274,7 @@ export default function SettingsPage() {
           position: relative;
           cursor: pointer;
           transition: background 0.2s;
+          border: 1px solid #333;
         }
         .toggle::before {
           content: '';
@@ -380,12 +283,13 @@ export default function SettingsPage() {
           height: 18px;
           border-radius: 50%;
           background: #666;
-          top: 3px;
-          left: 3px;
+          top: 2px;
+          left: 2px;
           transition: all 0.2s;
         }
         .toggle:checked {
           background: #ff6b35;
+          border-color: #ff6b35;
         }
         .toggle:checked::before {
           transform: translateX(20px);

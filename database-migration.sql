@@ -38,16 +38,20 @@ ALTER TABLE commanders ADD COLUMN IF NOT EXISTS partner_with TEXT;
 ALTER TABLE commanders ADD COLUMN IF NOT EXISTS has_friends_forever BOOLEAN DEFAULT false;
 
 -- =================================================
--- 4. Add unlimited_decks flag to profiles
+-- 4. Add columns to profiles
 -- =================================================
 
+-- Unlimited decks flag for admins/staff
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS unlimited_decks BOOLEAN DEFAULT false;
 
--- Add deck_count to profiles for tracking
+-- Deck count for tracking
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS deck_count INTEGER DEFAULT 0;
 
--- Add draws to profiles for aggregate stats
+-- Draws for aggregate stats
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS draws INTEGER DEFAULT 0;
+
+-- Legal name for prize verification
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS legal_name TEXT;
 
 -- =================================================
 -- 5. Add is_draw flag to match_results
@@ -56,7 +60,30 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS draws INTEGER DEFAULT 0;
 ALTER TABLE match_results ADD COLUMN IF NOT EXISTS is_draw BOOLEAN DEFAULT false;
 
 -- =================================================
--- 6. Update some sample commanders with partner abilities
+-- 6. Update the profile creation trigger to include legal_name
+-- =================================================
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, username, legal_name)
+  VALUES (
+    new.id, 
+    new.raw_user_meta_data->>'username',
+    new.raw_user_meta_data->>'legal_name'
+  );
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Recreate the trigger
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- =================================================
+-- 7. Update some sample commanders with partner abilities
 -- =================================================
 
 -- Update Malcolm with Partner
@@ -87,7 +114,7 @@ UPDATE commanders SET has_partner = true WHERE name IN (
 );
 
 -- =================================================
--- 7. Add some Background commanders (examples)
+-- 8. Add some Background commanders (examples)
 -- =================================================
 
 INSERT INTO commanders (name, color_identity, is_legal, is_background) VALUES
@@ -106,7 +133,7 @@ INSERT INTO commanders (name, color_identity, is_legal, is_background) VALUES
 ON CONFLICT (name) DO UPDATE SET is_background = true;
 
 -- =================================================
--- 8. Add some "Choose a Background" commanders (examples)
+-- 9. Add some "Choose a Background" commanders (examples)
 -- =================================================
 
 INSERT INTO commanders (name, color_identity, is_legal, has_choose_background) VALUES
@@ -145,4 +172,5 @@ ON CONFLICT (name) DO UPDATE SET has_choose_background = true;
 -- - Deck-based ELO ratings
 -- - Partner commanders (Partner, Partner with, Choose a Background, Friends forever)
 -- - Unlimited free deck registration for admins
+-- - Legal name for prize verification
 -- =================================================
