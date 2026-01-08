@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore, useDeckStore, useMatchStore, useLeaderboardStore } from '../lib/store'
-import { formatRelativeTime } from '../lib/utils'
+import { formatRelativeTime, getEloTier, getHighestDeckElo } from '../lib/utils'
 import { 
   Trophy, 
   Swords, 
@@ -13,7 +13,8 @@ import {
   Users,
   Target,
   Crown,
-  ChevronRight
+  ChevronRight,
+  Minus
 } from 'lucide-react'
 
 function DashboardPage() {
@@ -29,11 +30,23 @@ function DashboardPage() {
   }, [fetchDecks, fetchMatches, fetchLeaderboard])
 
   const recentMatches = matches.slice(0, 5)
-  const winRate = profile?.matches_played 
-    ? Math.round((profile.wins / profile.matches_played) * 100) 
+  
+  // Calculate stats from decks (ELO is deck-based, not player-based)
+  const activeDecks = decks.filter(d => d.is_active)
+  const highestDeckElo = getHighestDeckElo(activeDecks)
+  const tier = getEloTier(highestDeckElo)
+  
+  // Aggregate stats across all decks
+  const totalMatches = decks.reduce((sum, d) => sum + (d.matches_played || 0), 0)
+  const totalWins = decks.reduce((sum, d) => sum + (d.wins || 0), 0)
+  const totalDraws = decks.reduce((sum, d) => sum + (d.draws || 0), 0)
+  const totalLosses = totalMatches - totalWins - totalDraws
+  
+  const winRate = totalMatches > 0
+    ? Math.round((totalWins / totalMatches) * 100) 
     : 0
 
-  // Find user rank
+  // Find user rank (based on highest deck ELO)
   const userRank = leaderboard.findIndex(p => p.id === profile?.id) + 1
 
   return (
@@ -63,17 +76,17 @@ function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="stat-card">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gold/10 rounded-full blur-2xl" />
+          <div className={`absolute top-0 right-0 w-24 h-24 ${tier.bgColor} rounded-full blur-2xl`} />
           <div className="relative">
             <div className="flex items-center gap-2 text-dim mb-1">
               <Trophy className="w-4 h-4" />
-              <span className="text-sm font-medium">ELO Rating</span>
+              <span className="text-sm font-medium">Top Deck ELO</span>
             </div>
-            <p className="font-display font-bold text-4xl text-gold">
-              {profile?.elo || 1200}
+            <p className={`font-display font-bold text-4xl ${tier.color}`}>
+              {highestDeckElo || 0}
             </p>
-            <p className="text-sm text-dim mt-1">
-              {userRank > 0 ? `Rank #${userRank}` : 'Unranked'}
+            <p className={`text-sm mt-1 ${tier.color}`}>
+              {tier.name} {userRank > 0 && `• Rank #${userRank}`}
             </p>
           </div>
         </div>
@@ -86,10 +99,10 @@ function DashboardPage() {
               <span className="text-sm font-medium">Matches</span>
             </div>
             <p className="font-display font-bold text-4xl text-pale">
-              {profile?.matches_played || 0}
+              {totalMatches}
             </p>
             <p className="text-sm text-dim mt-1">
-              {profile?.wins || 0}W - {profile?.losses || 0}L
+              {totalWins}W - {totalLosses}L - {totalDraws}D
             </p>
           </div>
         </div>
@@ -105,7 +118,7 @@ function DashboardPage() {
               {winRate}%
             </p>
             <p className="text-sm text-dim mt-1">
-              This season
+              Across all decks
             </p>
           </div>
         </div>
@@ -118,7 +131,7 @@ function DashboardPage() {
               <span className="text-sm font-medium">Active Decks</span>
             </div>
             <p className="font-display font-bold text-4xl text-pale">
-              {decks.filter(d => d.is_active).length}
+              {activeDecks.length}
             </p>
             <p className="text-sm text-dim mt-1">
               {decks.length} total registered
@@ -145,6 +158,7 @@ function DashboardPage() {
             <div className="space-y-3">
               {recentMatches.map((match, index) => {
                 const isWin = match.placement === 1
+                const isDraw = match.placement === 0 || match.is_draw
                 const eloChange = match.elo_change || 0
                 
                 return (
@@ -156,9 +170,11 @@ function DashboardPage() {
                   >
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center
-                        ${isWin ? 'bg-success/20' : 'bg-stone'}`}>
+                        ${isWin ? 'bg-success/20' : isDraw ? 'bg-yellow-500/20' : 'bg-stone'}`}>
                         {isWin ? (
                           <Crown className="w-5 h-5 text-success" />
+                        ) : isDraw ? (
+                          <Minus className="w-5 h-5 text-yellow-500" />
                         ) : (
                           <span className="font-display font-bold text-dim">
                             #{match.placement}
@@ -167,7 +183,7 @@ function DashboardPage() {
                       </div>
                       <div>
                         <p className="font-medium text-pale">
-                          {match.matches?.match_results?.map(r => r.profiles?.username).join(' vs ') || 'Match'}
+                          {match.deck?.commander_name || 'Match'}
                         </p>
                         <p className="text-sm text-dim">
                           {formatRelativeTime(match.created_at)}
@@ -175,13 +191,15 @@ function DashboardPage() {
                       </div>
                     </div>
                     <div className={`flex items-center gap-1 font-display font-semibold
-                      ${eloChange >= 0 ? 'text-success' : 'text-danger'}`}>
-                      {eloChange >= 0 ? (
+                      ${eloChange > 0 ? 'text-success' : eloChange < 0 ? 'text-danger' : 'text-yellow-500'}`}>
+                      {eloChange > 0 ? (
                         <TrendingUp className="w-4 h-4" />
-                      ) : (
+                      ) : eloChange < 0 ? (
                         <TrendingDown className="w-4 h-4" />
+                      ) : (
+                        <Minus className="w-4 h-4" />
                       )}
-                      {eloChange >= 0 ? '+' : ''}{eloChange}
+                      {eloChange > 0 ? '+' : ''}{eloChange}
                     </div>
                   </div>
                 )
@@ -232,7 +250,7 @@ function DashboardPage() {
                     )}
                   </p>
                   <p className="text-sm text-dim">
-                    {player.wins}W - {player.losses}L
+                    {player.wins}W - {player.losses}L - {player.draws || 0}D
                   </p>
                 </div>
                 <div className="font-display font-semibold text-gold">

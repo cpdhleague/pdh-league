@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom'
 import { 
   Trophy, Crown, Medal, Award, Shield, TrendingUp, 
   Search, Filter, ChevronUp, ChevronDown, User,
-  Loader2, RefreshCw
+  Loader2, RefreshCw, Layers
 } from 'lucide-react'
 import { useLeaderboardStore, useAuthStore } from '../lib/store'
+import { getEloTier, calculateMedian } from '../lib/utils'
 
 export default function LeaderboardPage() {
   const { leaderboard, loading, fetchLeaderboard } = useLeaderboardStore()
@@ -47,15 +48,10 @@ export default function LeaderboardPage() {
     return null
   }
 
-  // Get ELO tier
-  const getEloTier = (elo) => {
-    if (elo >= 1800) return { name: 'Mythic', color: 'text-arcane', bg: 'bg-arcane/20' }
-    if (elo >= 1600) return { name: 'Diamond', color: 'text-gold', bg: 'bg-gold/20' }
-    if (elo >= 1400) return { name: 'Platinum', color: 'text-ember', bg: 'bg-ember/20' }
-    if (elo >= 1200) return { name: 'Gold', color: 'text-blue-400', bg: 'bg-blue-400/20' }
-    if (elo >= 1000) return { name: 'Silver', color: 'text-gray-400', bg: 'bg-gray-400/20' }
-    return { name: 'Bronze', color: 'text-amber-700', bg: 'bg-amber-700/20' }
-  }
+  // Calculate stats
+  const totalMatches = Math.floor(leaderboard.reduce((sum, p) => sum + (p.matches_played || 0), 0) / 4)
+  const totalDecks = leaderboard.reduce((sum, p) => sum + (p.deck_count || 1), 0)
+  const medianElo = calculateMedian(leaderboard.map(p => p.elo || 1000))
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -88,19 +84,22 @@ export default function LeaderboardPage() {
         <div className="card p-4">
           <p className="text-sm text-gray-400">Total Matches</p>
           <p className="text-2xl font-display font-bold text-ember">
-            {Math.floor(leaderboard.reduce((sum, p) => sum + (p.matches_played || 0), 0) / 4)}
+            {totalMatches}
           </p>
         </div>
         <div className="card p-4">
-          <p className="text-sm text-gray-400">Highest ELO</p>
+          <div className="flex items-center gap-1 mb-1">
+            <Layers className="w-4 h-4 text-gray-400" />
+            <p className="text-sm text-gray-400">Total Decks</p>
+          </div>
           <p className="text-2xl font-display font-bold text-gold">
-            {leaderboard[0]?.elo || '-'}
+            {totalDecks}
           </p>
         </div>
         <div className="card p-4">
-          <p className="text-sm text-gray-400">Average ELO</p>
+          <p className="text-sm text-gray-400">Median ELO</p>
           <p className="text-2xl font-display font-bold text-arcane">
-            {Math.round(leaderboard.reduce((sum, p) => sum + (p.elo || 1200), 0) / leaderboard.length) || '-'}
+            {Math.round(medianElo) || '-'}
           </p>
         </div>
       </div>
@@ -176,6 +175,9 @@ export default function LeaderboardPage() {
                         sortOrder === 'desc' ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />
                       )}
                     </div>
+                  </th>
+                  <th className="px-4 py-4 text-center text-sm font-medium text-gray-400">
+                    D
                   </th>
                   <th 
                     className="px-4 py-4 text-center text-sm font-medium text-gray-400 cursor-pointer hover:text-white transition-colors"
@@ -272,6 +274,11 @@ export default function LeaderboardPage() {
                         <span className="text-red-500 font-medium">{player.losses}</span>
                       </td>
 
+                      {/* Draws */}
+                      <td className="px-4 py-4 text-center">
+                        <span className="text-yellow-500 font-medium">{player.draws || 0}</span>
+                      </td>
+
                       {/* Games */}
                       <td className="px-4 py-4 text-center text-gray-400">
                         {player.matches_played}
@@ -303,12 +310,12 @@ export default function LeaderboardPage() {
         <h3 className="font-display font-semibold mb-4">ELO Tiers</h3>
         <div className="flex flex-wrap gap-4">
           {[
-            { name: 'Mythic', min: 1800, color: 'text-arcane', bg: 'bg-arcane/20' },
-            { name: 'Diamond', min: 1600, color: 'text-gold', bg: 'bg-gold/20' },
-            { name: 'Platinum', min: 1400, color: 'text-ember', bg: 'bg-ember/20' },
-            { name: 'Gold', min: 1200, color: 'text-blue-400', bg: 'bg-blue-400/20' },
-            { name: 'Silver', min: 1000, color: 'text-gray-400', bg: 'bg-gray-400/20' },
-            { name: 'Bronze', min: 0, color: 'text-amber-700', bg: 'bg-amber-700/20' },
+            { name: 'Mythic', min: 1400, color: 'text-red-500', bg: 'bg-red-500/20' },
+            { name: 'Diamond', min: 1300, color: 'text-cyan-400', bg: 'bg-cyan-400/20' },
+            { name: 'Platinum', min: 1200, color: 'text-emerald-400', bg: 'bg-emerald-400/20' },
+            { name: 'Gold', min: 1000, color: 'text-yellow-500', bg: 'bg-yellow-500/20' },
+            { name: 'Silver', min: 800, color: 'text-gray-300', bg: 'bg-gray-300/20' },
+            { name: 'Bronze', min: 0, color: 'text-orange-600', bg: 'bg-orange-600/20' },
           ].map(tier => (
             <div key={tier.name} className="flex items-center gap-2">
               <div className={`w-8 h-8 rounded ${tier.bg} flex items-center justify-center`}>

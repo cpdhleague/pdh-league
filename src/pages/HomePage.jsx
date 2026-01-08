@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../lib/store'
+import { config } from '../lib/config'
 import { 
   Trophy, 
   Users, 
@@ -8,7 +9,8 @@ import {
   Award, 
   ArrowRight,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  ExternalLink
 } from 'lucide-react'
 
 const features = [
@@ -95,9 +97,23 @@ function HomePage() {
         {/* Hero Content */}
         <div className="relative z-10 max-w-7xl mx-auto px-4 py-24 lg:py-32">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-ember/20 border border-ember/30 rounded-full mb-8 animate-fade-in">
-              <Sparkles className="w-4 h-4 text-ember" />
-              <span className="text-ember font-medium">Season 1 Now Live</span>
+            <div className="flex flex-wrap items-center gap-3 mb-8 animate-fade-in">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-ember/20 border border-ember/30 rounded-full">
+                <Sparkles className="w-4 h-4 text-ember" />
+                <span className="text-ember font-medium">Year 2 Now Live</span>
+              </div>
+              {config.YEAR_1_RESULTS_URL && (
+                <a 
+                  href={config.YEAR_1_RESULTS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-arcane/20 border border-arcane/30 rounded-full hover:bg-arcane/30 transition-colors"
+                >
+                  <Trophy className="w-4 h-4 text-arcane" />
+                  <span className="text-arcane font-medium">Year 1 Results</span>
+                  <ExternalLink className="w-3 h-3 text-arcane" />
+                </a>
+              )}
             </div>
             
             <h1 className="font-display font-bold text-5xl lg:text-7xl text-pale mb-6 animate-fade-in animate-delay-100">

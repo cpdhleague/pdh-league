@@ -255,19 +255,6 @@ export function formatRelativeTime(date) {
   return then.toLocaleDateString()
 }
 
-// --- NEW FUNCTION ADDED HERE ---
-// Format a standard date (e.g., "Jan 1, 2025")
-export function formatDate(dateString) {
-  if (!dateString) return 'N/A';
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date);
-}
-// ------------------------------
-
 // Generate a random lobby code
 export function generateLobbyCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -303,4 +290,47 @@ export const COLOR_IDENTITY = {
 export function getColorIdentityDisplay(colors) {
   if (!colors || colors.length === 0) return 'Colorless'
   return colors.map(c => COLOR_IDENTITY[c]?.name || c).join('/')
+}
+
+// Get ELO tier for a given rating
+export function getEloTier(elo) {
+  const tiers = [
+    { name: 'Bronze', min: 0, max: 799, color: 'text-orange-600', bgColor: 'bg-orange-600/20', borderColor: 'border-orange-600/30' },
+    { name: 'Silver', min: 800, max: 999, color: 'text-gray-300', bgColor: 'bg-gray-300/20', borderColor: 'border-gray-300/30' },
+    { name: 'Gold', min: 1000, max: 1199, color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', borderColor: 'border-yellow-500/30' },
+    { name: 'Platinum', min: 1200, max: 1299, color: 'text-emerald-400', bgColor: 'bg-emerald-400/20', borderColor: 'border-emerald-400/30' },
+    { name: 'Diamond', min: 1300, max: 1399, color: 'text-cyan-400', bgColor: 'bg-cyan-400/20', borderColor: 'border-cyan-400/30' },
+    { name: 'Mythic', min: 1400, max: 99999, color: 'text-red-500', bgColor: 'bg-red-500/20', borderColor: 'border-red-500/30' },
+  ]
+  
+  return tiers.find(t => elo >= t.min && elo <= t.max) || tiers[0]
+}
+
+// Get highest ELO from an array of decks
+export function getHighestDeckElo(decks) {
+  if (!decks || decks.length === 0) return 0
+  return Math.max(...decks.map(d => d.elo || 1000))
+}
+
+// Calculate median from an array of numbers
+export function calculateMedian(numbers) {
+  if (!numbers || numbers.length === 0) return 0
+  const sorted = [...numbers].sort((a, b) => a - b)
+  const middle = Math.floor(sorted.length / 2)
+  
+  if (sorted.length % 2 === 0) {
+    return (sorted[middle - 1] + sorted[middle]) / 2
+  }
+  return sorted[middle]
+}
+
+// Format date for display
+export function formatDate(date) {
+  if (!date) return ''
+  const d = new Date(date)
+  return d.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
 }

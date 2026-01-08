@@ -2,7 +2,6 @@
   "name": "pdh-league",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
   "homepage": "https://yourusername.github.io/pdh-league",
   "dependencies": {
     "react": "^18.2.0",
